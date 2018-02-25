@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<meta charset='utf-8'>
+<script src='https://d3js.org/d3.v4.min.js'></script>
+<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js'></script>
+<script type=text/javascript>
+  $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
+</script>
+
+<style>
+.links line {
+  stroke: #999;
+  stroke-opacity: 0.5;
+}
+
+.nodes circle {
+  stroke: #FFF;
+  stroke-width: 1.5px;
+}
+
+text {
+  font: 14px sans-serif;
+  text-anchor: middle;
+}
+svg {
+  position: fixed;
+  height: 100%;
+  width: 100%;
+}
+</style>
+<div style='z-index: 1; position: absolute;'>
+<input type='text' id='txt_entity'>
+</div style='z-index: 2; position: absolute;'>
+<svg></svg>
+<script>
+
+var svg = d3.select('svg'),
+  height = window.innerHeight,
+  width = window.innerWidth,
+  radius = 25;
+
+var color = d3.scaleOrdinal(d3.schemeCategory20);
+
+var simulation = d3.forceSimulation()
+    .force('link', d3.forceLink().id(function(d) { return d.id; }))
+    .force('charge', d3.forceManyBody().strength(-500))
+    .force('collide', d3.forceCollide(30))
+    .force('center', d3.forceCenter(width / 2, height / 2));
+
+function dragstarted(d) {
+  if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+  d.fx = d.x;
+  d.fy = d.y;
+}
+
+function dragged(d) {
+  d.fx = d3.event.x;
+  d.fy = d3.event.y;
+}
+
+function dragended(d) {
+  if (!d3.event.active) simulation.alphaTarget(0);
+  d.fx = null;
+  d.fy = null;
+}
+
+function buildGraph(entity) {
+  d3.json($SCRIPT_ROOT + '/get_all_related/' + entity, function(error, graph) {
+    if (error) throw error;
+
+    svg.selectAll("*").remove()
+    
+    var link = svg.append('g')
+      .attr('class', 'links')
+      .selectAll('line')
+      .data(graph.links)
+      .enter()
+      .append('line')
+      .attr('stroke-width', function(d) { return Math.sqrt(d.value) * 3; });
+
+    var elem = svg.selectAll('node')
+      .data(graph.nodes);
+
+    /*Create and place the 'blocks' containing the circle and the text */  
+    var node = elem.enter()
+      .append('g')
+      .attr('class', 'nodes');
+
+    /*Create the circle for each block */
+    var circle = node.append('circle')
+      .attr('r', radius)
+      .attr('fill', function(d) { return color(d.group); })
+      .call(d3.drag()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended));
+
+    /* Create the text for each block */
+    var text = node.append('text')
+      .text(function(d){return d.id});
+
+    simulation
+      .nodes(graph.nodes)
+      .on('tick', ticked);
+
+    simulation.force('link')
+        .links(graph.links);
+
+    function ticked() {
+      text
+          .attr('x', function(d) { return d.x = Math.max(radius, Math.min(width - radius, d.x)); })
+          .attr('y', function(d) { return d.y = Math.max(radius, Math.min(height - radius, d.y)); });
+      circle
+          .attr('cx', function(d) { return d.x = Math.max(radius, Math.min(width - radius, d.x)); })
+          .attr('cy', function(d) { return d.y = Math.max(radius, Math.min(height - radius, d.y)); });
+      link
+          .attr('x1', function(d) { return d.source.x; })
+          .attr('y1', function(d) { return d.source.y; })
+          .attr('x2', function(d) { return d.target.x; })
+          .attr('y2', function(d) { return d.target.y; });
+    }
+    $('.nodes').on("dblclick",function(d){
+      entity = $(this).children('text')[0].innerHTML;
+      $('#txt_entity').val(entity)
+      buildGraph(entity);
+    });
+    simulation.alpha(1).restart();
+})
+}
+
+$('#txt_entity').on("keypress", function(e) {
+  if (e.keyCode == 13) {
+      e.preventDefault();
+      var entity = $('#txt_entity').val();
+      buildGraph(entity);
+  }
+});
+</script>
