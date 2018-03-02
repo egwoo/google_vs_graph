@@ -36,3 +36,6 @@ def get_all_related(entities):
                     edges.add((entity, related))
     return jsonify({'nodes': [{'id': k, 'group': v} for k, v in nodes.items()],
         'links': [{'source': e[0], 'target': e[1], 'value': 1} for e in edges]})
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=80)
